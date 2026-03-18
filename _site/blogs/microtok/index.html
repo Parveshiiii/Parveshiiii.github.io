@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microtok</title>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-section">
+        <a href="/" class="site-title">
+          <img src="/assets/rssicon.svg" alt="Logo" style="margin-right: 12px;">
+          Parvesh Rawal blog
+        </a>
+      </div>
+      <nav>
+        <a href="/about">About</a>
+      </nav>
+    </header>
+
+    <main>
+      <article class="post-header">
+  <span class="post-meta">Feb 12, 2026</span>
+  <h1>Microtok</h1>
+</article>
+
+<div class="post-content">
+  <p>This is a brief guide to my project <strong><a href="https://github.com/Parveshiiii/microtok">microtok</a></strong>: a minimalist realization of the BPE tokenizer’s core. It has been built for clarity and learning, leveraging the underlying <strong>tokenizers library</strong> to support both the <strong>classic Byte Pair Encoding (BPE)</strong> found in GPT-2 and the more modern, regex-driven approach used by <strong>tiktoken</strong>.</p>
+
+<p>The entire engine is optimized for simplicity, yet remains powerful enough to train on million-token datasets in just 3 lines of code. This project was born from a desire to demystify the first “gear” of the generative pipeline, simplifying the intricate process of tokenization to its absolute essentials, and I think it is beautiful 🥹.</p>
+
+<hr />
+<p><strong>Dual BPE &amp; Tiktoken Style Tokenizer Trainer</strong>
+—</p>
+
+<p align="center">
+  <img src="/assets/images/carbon.png" alt="Microtok Banner" width="90%" style="border-radius:15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);" />
+</p>
+
+<h3 id="links--resources">Links &amp; Resources</h3>
+
+<ul>
+  <li><strong>GitHub Repository</strong>: <a href="https://github.com/Parveshiiii/microtok">microtok</a> (full library code)</li>
+  <li><strong>Interactive Guide</strong>: Open in a <a href="https://colab.research.google.com/github/Parveshiiii/microtok/blob/main/assets/Tokenizer-from-scratch.ipynb">Colab Notebook</a></li>
+</ul>
+
+<h2 id="basic-difference-between-bpe-and-tiktoken">Basic difference between BPE and Tiktoken</h2>
+
+<p>While both are same under the hood they both use the <strong>Byte Pair Encoding (BPE)</strong> which is basically a algorithm which when trained makes an internal representation of merges or creates a merge table which is a guide of how to tokenize any word. It uses <strong>UTF-8</strong> which breaks each character down to 256 base bytes—this is the reason it can represent any language and any kind of word and avoid the problem the <strong>Word-Level Encoding (WLE)</strong> had which was if WLE gets a new word which isn’t present in its vocab it will return an <code class="language-plaintext highlighter-rouge">&lt;UNK&gt;</code> token and the model loses the meaning. Some folks might think it could be handled using the <strong>CLT (Character-Level Encoding)</strong> but the problem was that the sequence tokenized by CLT became very large which is very inefficient and compute-hungry for the model’s memory. This is the reason why BPE emerged; it uses those 256 base bytes as the starting point so it never sees an “unknown” character and generates the merge table by seeing the most frequent pairs of tokens in a sequence and merging them until it reaches a vocabulary size like 32k or 50k. These 256 bytes are the “alphabet” but the merge table holds the “words” and “parts of words” the model actually reads by greedily following the table in the exact order it learned them. It even treats spaces as characters (often shown as a special symbol like <code class="language-plaintext highlighter-rouge">Ġ</code>) so it knows the difference between a word at the start of a sentence and a word with a space before it, which keeps the sequence length short enough for the computer to handle while making sure it understands the meaning of every single byte it sees.</p>
+
+<hr />
+
+<h3 id="bpe-vs-tiktoken-algorithm-vs-implementation">BPE vs. Tiktoken: Algorithm vs. Implementation</h3>
+
+<p>It is important to understand that BPE is the name of the actual algorithm (the “math” and “logic”), while Tiktoken is just OpenAI’s specific name for their version of it.</p>
+
+<p>– BPE (Hugging Face): This is the standard implementation used by most of the AI community. It is very flexible and can be used for almost any model, but it is built to be a general-purpose tool for research and this is the one we are using.</p>
+
+<p>– Tiktoken (OpenAI): This is another name for BPE, but it is OpenAI’s custom implementation. They wrote the core engine in Rust to make it incredibly fast—much faster than the normal Hugging Face implementation.</p>
+
+<hr />
+
+<p>Even though the logic is the same, there is a big practical difference between the official ‘tiktoken’ library and the ‘tokenizers’ library from Hugging Face. 
+The official Tiktoken library by OpenAI is built for speed and production. It is like a “Read-Only” engine—it is designed to use the pre-trained merge tables that OpenAI already made (like for GPT-4). The problem for us researchers is that Tiktoken doesn’t actually have a “Trainer” class. You can’t just give it a new dataset and tell it to learn a new vocabulary from scratch.
+This is where our implementation comes in. We used the Hugging Face ‘tokenizers’ library to build a “Tiktoken-style” trainer. We did this by:</p>
+
+<ul>
+  <li>
+    <p>Using a similar GPT-4 Regex pattern: This ensures the text is split into the same “chunks” (like keeping ‘s or ‘ve with their words) before any merging happens.</p>
+  </li>
+  <li>
+    <p>Using the Byte-Level BPE model: This gives us those 256 base bytes so we never hit an <UNK> token.</UNK></p>
+  </li>
+  <li>
+    <p>Setting up a BpeTrainer: This allows us to actually “train” on our own custom data and decide our own vocabulary size (like 64k).</p>
+  </li>
+</ul>
+
+<p>By doing this, we get the best of both worlds: the smart splitting logic of Tiktoken and the ability to train on any custom data we want. This is how we implemented a tokenizer that “thinks” like GPT-4 but is customized for our specific research needs.</p>
+
+<hr />
+
+<h2 id="the-code-training-your-own-tokenizer">The Code: Training Your Own Tokenizer</h2>
+
+<p>Let’s dive into how you actually use <code class="language-plaintext highlighter-rouge">microtok</code>. The library is split into two lean modules: one for streaming your data and another for actually running the trainer.</p>
+
+<h3 id="1-the-batch_iterator">1. The <code class="language-plaintext highlighter-rouge">batch_iterator</code></h3>
+<p>Think of this as your <strong>data faucet</strong>. Instead of trying to shove a 10GB dataset into your RAM—which would probably crash your machine—this module streams the data from Hugging Face in small, manageable batches. By default, it’s hooked up to the <strong>FineWeb-Edu 10BT</strong> sample, but you can point it at any dataset you want and tweak the batch size to fit your memory.</p>
+
+<p><code class="language-plaintext highlighter-rouge">def batch_iterator(BATCH_SIZE=10_000, Dataset="HuggingFaceFW/fineweb-edu", split="train", name="sample-10BT", ...)</code></p>
+
+<h3 id="2-the-bpetrainer--tiktokentrainer">2. The <code class="language-plaintext highlighter-rouge">BPETrainer</code> &amp; <code class="language-plaintext highlighter-rouge">TikTokenTrainer</code></h3>
+<p>These are your heavy lifters. This is where you initialize the tokenizer with your desired vocabulary size and specific special tokens (like <code class="language-plaintext highlighter-rouge">[PAD]</code> or <code class="language-plaintext highlighter-rouge">[MASK]</code>). Once you have your data stream ready, you just plug it in here. The engine handles the iterative merging and saves a production-ready folder for you once it’s done.</p>
+
+<p><code class="language-plaintext highlighter-rouge">def Trainer(batch_iterator, vocab_size=64_000, special_tokens=[...], save_to="tokenizer")</code></p>
+
+<hr />
+
+<h3 id="combined-usage-example">Combined Usage Example</h3>
+<p>Here is the most basic way to get a customized tokenizer up and running. In this example, we’re training a 64k vocab BPE tokenizer on FineWeb-Edu:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="n">microtok</span> <span class="kn">import</span> <span class="n">BPETrainer</span><span class="p">,</span> <span class="n">batch_iterator</span>
+
+<span class="c1"># Initialize the data stream (defaults to FineWeb-Edu 10BT sample)
+# Batches are yielded to keep memory usage low
+</span><span class="n">batch_iter</span> <span class="o">=</span> <span class="nf">batch_iterator</span><span class="p">(</span><span class="n">BATCH_SIZE</span><span class="o">=</span><span class="mi">10_000</span><span class="p">)</span>
+
+<span class="c1"># Start Training
+</span><span class="nc">BPETrainer</span><span class="p">(</span>
+    <span class="n">batch_iter</span><span class="p">,</span> 
+    <span class="n">vocab_size</span><span class="o">=</span><span class="mi">64_000</span><span class="p">,</span> 
+    <span class="n">special_tokens</span><span class="o">=</span><span class="p">[</span><span class="sh">"</span><span class="s">[PAD]</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">[UNK]</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">[CLS]</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">[SEP]</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">[MASK]</span><span class="sh">"</span><span class="p">],</span>
+    <span class="n">save_to</span><span class="o">=</span><span class="sh">"</span><span class="s">my_bpe_tokenizer</span><span class="sh">"</span>
+<span class="p">)</span>
+</code></pre></div></div>
+<hr />
+
+<h2 id="example-run">Example Run</h2>
+
+<p>We trained a tokenizer using this <a href="https://colab.research.google.com/github/Parveshiiii/microtok/blob/main/assets/Tokenizer-from-scratch.ipynb">Colab Notebook</a> and we don’t need a GPU to train a tokenizer.</p>
+
+<p>you can find it <a href="https://huggingface.co/Parveshiiii/microtok">here</a></p>
+
+</div>
+      
+      <p style="margin-top: 3rem;"><a href="/" style="color: var(--secondary-color); text-decoration: none;">← Back to
+          blog</a></p>
+      
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-col">
+        Parvesh Rawal blog
+      </div>
+      <div class="footer-col center">
+        <ul class="footer-links">
+          <li>
+            <a href="https://github.com/Parveshiiii" target="_blank">
+              <svg height="16" viewBox="0 0 16 16" width="16"
+                style="vertical-align: middle; margin-right: 4px; fill: currentColor;">
+                <path
+                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+                </path>
+              </svg>
+              Parvesh
+            </a>
+          </li>
+          <li>
+            <a href="https://linkedin.com/in/parvesh" target="_blank">
+              <svg height="16" viewBox="0 0 16 16" width="16"
+                style="vertical-align: middle; margin-right: 4px; fill: currentColor;">
+                <path
+                  d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 01.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z">
+                </path>
+              </svg>
+              Parvesh
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="footer-col right">
+        "I love deep-neural-nets."
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    document.querySelectorAll('a').forEach(link => {
+      if (link.hostname !== window.location.hostname) {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
+    });
+  </script>
+</body>
+
+</html>

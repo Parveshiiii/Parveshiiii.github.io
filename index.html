@@ -1,0 +1,15 @@
+---
+layout: default
+title: "Parvesh Rawal blog"
+---
+
+<ul class="post-list">
+  {% assign sorted_blogs = site.blogs | sort: 'date' | reverse %}
+  {% for blog in sorted_blogs %}
+  <li class="post-item">
+    <span class="post-date">{{ blog.date | date: "%b %d, %Y" }}</span>
+    <a href="{{ blog.url | relative_url }}" class="post-link">{{ blog.title }}</a>
+    <p class="post-snippet">{{ blog.snippet }}</p>
+  </li>
+  {% endfor %}
+</ul>
