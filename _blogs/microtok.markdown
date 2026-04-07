@@ -74,6 +74,7 @@ These are your heavy lifters. This is where you initialize the tokenizer with yo
 ---
 
 ### Combined Usage Example
+
 Here is the most basic way to get a customized tokenizer up and running. In this example, we’re training a 64k vocab BPE tokenizer on FineWeb-Edu:
 
 ```python
